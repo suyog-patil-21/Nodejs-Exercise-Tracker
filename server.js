@@ -39,14 +39,14 @@ app
   })
   .post((req, res) => {
     let username = req.body.username;
-    if (username !== "") {
-      Users.create({ username: username }, (err, user) => {
-        if (err) return console.log(err);
-        res.status(200).json({ username: user.username, _id: user._id });
-      });
-    } else {
-      res.status(400).end("Path `username` is required.");
-    }
+    // if (username !== "") {
+    Users.create({ username: username }, (err, user) => {
+      if (err) return console.log(err.message);
+      res.status(200).json({ username: user.username, _id: user._id });
+    });
+    // } else {
+    // res.status(400).end("Path `username` is required.");
+    // }
   });
 // invalid id or not present in database // * res.end("Cast to ObjectId failed for value "234" at path "_id" for model "Users"");
 // description max length 20
@@ -56,18 +56,17 @@ app
 app.post("/api/users/:_id/exercises", async (req, res) => {
   const id = req.params._id;
   const description = req.body.description;
-  const duration = req.body.duration;
+  const duration = Number(req.body.duration);
   const dateString = req.body.date;
   let date = dateString === "" ? new Date(Date.now()) : new Date(dateString);
   // console.log(id, description, duration, date);
 
-  Users.findById(id, (err, user) => {
+  Users.findById(id, async (err, user) => {
     // ? User Validation : present or not
     if (err) {
-      // console.log("err", err, err.message);
-      res.send(err.message);
-      res.end();
-      return;
+      return res.end(err.message);
+      // res.end();
+      // return;
     }
     console.log("at Start  :", user);
     // ? Descripton Validation
@@ -84,11 +83,13 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
     //   res.end("duration less than 0 ");
     // }
     // ? Creating User Exercise
+    // FIXME : Count is not correct
+    // FIXME : default date by mongodb
     if (user !== undefined) {
       Users.findByIdAndUpdate(
         user._id,
         {
-          count: user.log.length,
+          count: 1 + user.log.length,
           $push: {
             log: {
               duration,
@@ -97,12 +98,22 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
             },
           },
         },
-        (err, newDoc) => {
+        (err) => {
           if (err) {
             res.end(err.message);
             return;
+          } else {
+            res.json({
+              username: user.username,
+              _id: user._id,
+              duration,
+              description,
+              date: date.toDateString(),
+            });
           }
-          console.log("user afterward :", newDoc);
+          // IF complete success
+
+          // console.log("user afterward :", newDoc);
           // res.json({ username: doc.username });
         }
       );
