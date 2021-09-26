@@ -15,7 +15,6 @@ const exerciseSchema = mongoose.Schema({
 
 const usersSchema = mongoose.Schema({
   username: { type: String, required: true },
-  count: { type: Number, default: 0, min: 0 },
   log: [exerciseSchema],
 });
 const Users = new mongoose.model("User", usersSchema);

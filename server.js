@@ -20,9 +20,12 @@ app.use(express.static("public"));
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/views/index.html");
 });
-
-// for body parsing
 app.use(express.urlencoded({ extended: false }));
+app.use((req, res, next) => {
+  console.log(req.method, req.path, req.params, req.body, req.query);
+  next();
+});
+// for body parsing
 
 app
   .route("/api/users")
@@ -42,7 +45,6 @@ app
   })
   .post((req, res) => {
     let username = req.body.username;
-    // if (username !== "") {
     Users.create({ username: username }, (err, user) => {
       if (err) {
         const message = err.message;
@@ -50,54 +52,46 @@ app
       }
       res.status(200).json({ username: user.username, _id: user._id });
     });
-    // } else {
-    // res.status(400).end("Path `username` is required.");
-    // }
   });
-// invalid id or not present in database // * res.end("Cast to ObjectId failed for value "234" at path "_id" for model "Users"");
-// description max length 20
-//  duration less than 0 // * res.end("duration too short");
-// date no manidatory
-// date must be valid or  // * res.end('Cast to date failed for value "2021-14-21" at path "date"');
+
 app.post("/api/users/:_id/exercises", (req, res) => {
   const id = req.params._id;
   const description = req.body.description;
   const duration = Number(req.body.duration);
-  const dateString = req.body.date;
-  let date = dateString === "" ? new Date(Date.now()) : new Date(dateString);
-  // console.log(id, description, duration, date);
+  let date;
+  try {
+    date = req.body.date === "" ? new Date() : new Date(req.body.date);
+  } catch (err) {
+    console.log("Date formate error  Watch this  :", err.message);
+  }
 
   Users.findById(id, async (err, user) => {
     if (err) {
       return res.end(err.message);
     }
-    console.log("at Start  :", user);
-
-    // FIXME : default date by mongodb
     if (user !== undefined && user._id !== null) {
       Users.findOneAndUpdate(
-        user._id,
+        { _id: user._id },
         {
-          count: 1 + user.log.length,
           $push: {
             log: {
               duration,
               description,
-              date: date.toISOString(),
+              date: date,
             },
           },
         },
         { runValidators: true },
         (err) => {
           if (err) {
-            return res.end(message);
+            return res.end(err.message);
           } else {
             res.json({
-              username: user.username,
               _id: user._id,
+              username: user.username,
+              date: date.toDateString(),
               duration,
               description,
-              date: date.toDateString(),
             });
           }
         }
@@ -106,20 +100,33 @@ app.post("/api/users/:_id/exercises", (req, res) => {
   });
 });
 
-app.get("/api/:_id/logs", (req, res) => {
-  // {"_id":"6121b53bf5860e05a3652fee",
-  // "username":"megan",
-  // "count":1,
-  // "log":[
-  // {
-  // "description":"1231",
-  // "duration":123,
-  // "date":"Mon Nov 26 1973"
-  // }
-  // ]}
+app.get("/api/users/:_id/logs?", (req, res) => {
   const id = req.params._id;
+  Users.findById(id, (err, userdoc) => {
+    if (err) {
+      return res.end(err.message);
+    } else {
+      let log = userdoc.log.map((value) => {
+        return {
+          description: value.description,
+          duration: value.duration,
+          date: Date(value.date).toDateString(),
+        };
+      });
+
+      res.json({
+        username: userdoc.username,
+        count: log.length,
+        _id: userdoc._id,
+        log: log,
+      });
+    }
+  });
 });
 
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log("Your app is listening on port " + listener.address().port);
 });
+
+//free :user1 : 615068f681a96b054b04cdb2
+//my : user1 :  615079fa22e5ee8b9ce6ea85
