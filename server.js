@@ -29,9 +29,12 @@ app
   .get((req, res) => {
     // after user got created
     Users.find({}, (err, data) => {
-      if (err) return console.log(err);
+      if (err) {
+        const message = err.message;
+        return res.end(message.substring(message.lastIndexOf(":") + 1));
+      }
       var temp = [];
-      data.forEach((value, index, array) => {
+      data.forEach((value) => {
         temp.push({ username: value.username, _id: value._id, __v: value.__v });
       });
       res.json(temp);
@@ -41,7 +44,10 @@ app
     let username = req.body.username;
     // if (username !== "") {
     Users.create({ username: username }, (err, user) => {
-      if (err) return console.log(err.message);
+      if (err) {
+        const message = err.message;
+        return res.end(message.substring(message.lastIndexOf(":") + 1));
+      }
       res.status(200).json({ username: user.username, _id: user._id });
     });
     // } else {
@@ -53,7 +59,7 @@ app
 //  duration less than 0 // * res.end("duration too short");
 // date no manidatory
 // date must be valid or  // * res.end('Cast to date failed for value "2021-14-21" at path "date"');
-app.post("/api/users/:_id/exercises", async (req, res) => {
+app.post("/api/users/:_id/exercises", (req, res) => {
   const id = req.params._id;
   const description = req.body.description;
   const duration = Number(req.body.duration);
@@ -62,31 +68,14 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
   // console.log(id, description, duration, date);
 
   Users.findById(id, async (err, user) => {
-    // ? User Validation : present or not
     if (err) {
       return res.end(err.message);
-      // res.end();
-      // return;
     }
     console.log("at Start  :", user);
-    // ? Descripton Validation
-    // if (description === "") {
-    //   res.end("Descriptiton is empty");
-    // } else if (description.length > 20) {
-    //   res.end("length is greater than 20 ");
-    // }
 
-    // ? Duration Validation
-    // if (isNaN(duration)) {
-    //   res.end("duration is not a number");
-    // } else if (duration <= 0) {
-    //   res.end("duration less than 0 ");
-    // }
-    // ? Creating User Exercise
-    // FIXME : Count is not correct
     // FIXME : default date by mongodb
-    if (user !== undefined) {
-      Users.findByIdAndUpdate(
+    if (user !== undefined && user._id !== null) {
+      Users.findOneAndUpdate(
         user._id,
         {
           count: 1 + user.log.length,
@@ -94,14 +83,14 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
             log: {
               duration,
               description,
-              date: date.toDateString(),
+              date: date.toISOString(),
             },
           },
         },
+        { runValidators: true },
         (err) => {
           if (err) {
-            res.end(err.message);
-            return;
+            return res.end(message);
           } else {
             res.json({
               username: user.username,
@@ -111,10 +100,6 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
               date: date.toDateString(),
             });
           }
-          // IF complete success
-
-          // console.log("user afterward :", newDoc);
-          // res.json({ username: doc.username });
         }
       );
     }

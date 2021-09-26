@@ -2,20 +2,20 @@ const mongoose = require("mongoose");
 const exerciseSchema = mongoose.Schema({
   description: {
     type: String,
-    required: [true, "Path `description` is required."],
-    maxLength: [20, "description too long"],
+    required: true,
+    maxLength: 20,
   },
   duration: {
     type: Number,
-    required: [true, "Path `duration` is required."],
-    min: [0, "duration too short"],
+    required: true,
+    min: [1,"duration is short"],
   },
   date: { type: Date, default: Date.now },
 });
 
 const usersSchema = mongoose.Schema({
-  username: { type: String, required: [true, "Path `username` is required."] },
-  count: { type: Number, default: 0 },
+  username: { type: String, required: true },
+  count: { type: Number, default: 0, min: 0 },
   log: [exerciseSchema],
 });
 const Users = new mongoose.model("User", usersSchema);
