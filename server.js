@@ -138,7 +138,8 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
 app.get("/api/users/:_id/logs?", async (req, res) => {
   const id = req.params._id;
   let { from, to, limit } = req.query;
-  const findQuery = {};
+  const findQuery = { date: {} };
+
   const isUserQuery = await Users.findById(id)
     .exec()
     .catch((err) => {
@@ -146,24 +147,29 @@ app.get("/api/users/:_id/logs?", async (req, res) => {
       return res.status(400).end("Unknown userId");
     });
   if (new Date(from) != "Invalid Date") {
-    from = new Date(from);
-    findQuery.date = { $gt: from };
+    findQuery.date.$gte = new Date(from);
   }
   if (new Date(to) != "Invalid Date") {
-    to = new Date(from);
-    // to.setDate(to.getDate() + 1);
-    findQuery.date = { $lte: to };
+    let tempTo = new Date(to);
+    tempTo.setDate(tempTo.getDate() + 1);
+    findQuery.date.$lte = tempTo;
   }
   if (isNaN(limit)) {
     limit = 0;
   } else {
-    limit = Number(limit);
+    limit = parseInt(limit);
   }
-  console.log("find Query content = ", findQuery);
+  if (
+    // Object.keys(findQuery.date).length === 0 &&
+    Object.entries(findQuery.date).length === 0 &&
+    findQuery.date.constructor === Object
+  ) {
+    delete findQuery["date"];
+  }
   if (isUserQuery) {
     findQuery.userId = isUserQuery._id;
+    console.log("find Query content = ", findQuery, "limit : ", limit);
     Exercises.find(findQuery)
-      .select("userId description duration date")
       .sort({ date: -1 })
       .limit(limit)
       .exec((err, data) => {
@@ -171,13 +177,22 @@ app.get("/api/users/:_id/logs?", async (req, res) => {
           console.log(err.message);
           return res.end("Error");
         }
+        var temp = [];
+        data.forEach((value, index, array) => {
+          // console.log(value);
+          temp.push({
+            description: value.description,
+            duration: value.duration,
+            date: value.date.toDateString(),
+          });
+        });
         if (data) {
           // console.log("Exercises : ", data);
           res.status(200).json({
             _id: isUserQuery._id,
             username: isUserQuery.username,
             count: data.length,
-            log: data,
+            log: temp,
           });
         }
       });
@@ -187,6 +202,8 @@ app.get("/api/users/:_id/logs?", async (req, res) => {
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log("Your app is listening on port " + listener.address().port);
 });
+//fre : 61543c0982372104c8fa26dc
+//me : 61543c0eebd9dd40e0a36f15
 
 /**
  * You can make a GET request to /api/users/:_id/logs to retrieve a full exercise log of any user.
