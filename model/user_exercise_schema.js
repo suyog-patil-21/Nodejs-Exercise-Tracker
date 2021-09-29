@@ -8,15 +8,17 @@ const exerciseSchema = mongoose.Schema({
   duration: {
     type: Number,
     required: true,
-    min: [1,"duration is short"],
+    min: 1,
   },
   date: { type: Date, default: Date.now },
+  userId: { type: String, required: true },
 });
 
 const usersSchema = mongoose.Schema({
   username: { type: String, required: true },
-  log: [exerciseSchema],
 });
 const Users = new mongoose.model("User", usersSchema);
+const Exercises = new mongoose.model("exercises", exerciseSchema);
 
-module.exports = Users;
+exports.Users = Users;
+exports.Exercises = Exercises;
