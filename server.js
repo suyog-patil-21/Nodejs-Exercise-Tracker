@@ -36,7 +36,6 @@ app.use((req, res, next) => {
   );
   next();
 });
-// for body parsing
 
 app
   .route("/api/users")
@@ -48,11 +47,15 @@ app
         console.log(err.message);
         return res.end(message.substring(message.lastIndexOf(":") + 1));
       }
-      var temp = [];
+      var allusers = [];
       data.forEach((value) => {
-        temp.push({ username: value.username, _id: value._id, __v: value.__v });
+        allusers.push({
+          username: value.username,
+          _id: value._id,
+          __v: value.__v,
+        });
       });
-      res.json(temp);
+      res.json(allusers);
     });
   })
   .post((req, res) => {
@@ -67,139 +70,81 @@ app
     });
   });
 
-app.post("/api/users/:_id/exercises", async (req, res) => {
+// Create user Exercises
+app.post("/api/users/:_id/exercises", (req, res) => {
   const id = req.params._id;
-  let description;
-  let duration;
+  const { description, duration } = req.body;
   let date;
+  if (req.body.date) {
+    date = new Date(req.body.date).toDateString();
+    if (date == "Invalid Date") {
+      return res.end("Invalid Date Format");
+    }
+  } else {
+    date = new Date().toDateString();
+  }
 
-  const isUserQuery = await Users.findById(id)
-    .exec()
-    .catch((err) => {
-      // ? User
-      console.log("Catch err encounter :", err.message);
-      res.status(400).end("Unknown userId");
-    });
-  // ? Description
-  if (req.body.description === "") {
-    return res.end("Path `description` is required.");
-  } else if (req.body.description.length >= 20) {
-    return res.end("description too long");
-  } else {
-    description = req.body.description;
-  }
-  // ? Duration
-  if (req.body.duration === "") {
-    return res.status(400).end("Path `duration` is required.");
-  } else if (isNaN(parseInt(req.body.duration))) {
-    return res
-      .status(400)
-      .end(
-        'Cast to Number failed for value "' +
-          req.body.duration +
-          '" at path "duration"'
-      );
-  } else if (duration < 1) {
-    return res.status(400).end("duration is short");
-  } else {
-    duration = parseInt(req.body.duration);
-  }
-  // ? DATE
-  if (req.body.date === "") {
-    date = new Date(Date.now());
-  } else if (new Date(req.body.date) == "Invalid Date") {
-    return res
-      .status(400)
-      .end(
-        'Cast to date failed for value "' + req.body.date + '" at path "date"'
-      );
-  } else {
-    date = new Date(req.body.date);
-  }
-  //valid isUser then process
-  if (isUserQuery) {
-    Exercises.create(
-      { userId: isUserQuery._id, description, duration, date },
-      (err, data) => {
-        if (err) {
-          return console.log(err.message);
-        }
-        if (data) {
-          res.json({
-            _id: isUserQuery._id,
-            username: isUserQuery.username,
-            description,
-            duration,
-            date: date.toDateString(),
-          });
-        }
+  Users.findById(id, (err, user) => {
+    if (err) {
+      console.log(err.message);
+      return res.end(err.message);
+    }
+    user.log.push({ description, duration, date });
+    user.save((err, data) => {
+      if (err) {
+        return res.end(err.message);
       }
-    );
-  }
+      console.log("Exercise got created : ", data);
+      const latestExercise = data.log[data.log.length - 1];
+      res.json({
+        _id: data._id,
+        username: data.username,
+        description: latestExercise.description,
+        duration: Number(latestExercise.duration),
+        date: new Date(latestExercise.date).toDateString(),
+      });
+    });
+  });
 });
 
-app.get("/api/users/:_id/logs?", async (req, res) => {
+// Finding All User Exercise Log
+app.get("/api/users/:_id/logs", (req, res) => {
   const id = req.params._id;
   let { from, to, limit } = req.query;
-  const findQuery = { date: {} };
 
-  const isUserQuery = await Users.findById(id)
-    .exec()
-    .catch((err) => {
-      console.log("Catch err encounter :", err.message);
-      return res.status(400).end("Unknown userId");
+  Users.findById(id, (err, user) => {
+    if (err) {
+      console.log(err.message);
+      return res.end(err.message);
+    }
+    let userlog = user.log.map((item) => {
+      return {
+        description: item.description,
+        duration: item.duration,
+        date: new Date(item.date).toDateString(),
+      };
     });
-  if (new Date(from) != "Invalid Date") {
-    findQuery.date.$gte = new Date(from);
-  }
-  if (new Date(to) != "Invalid Date") {
-    let tempTo = new Date(to);
-    tempTo.setDate(tempTo.getDate() + 1);
-    findQuery.date.$lte = tempTo;
-  }
-  if (isNaN(limit)) {
-    limit = 0;
-  } else {
-    limit = parseInt(limit);
-  }
-  if (
-    // Object.keys(findQuery.date).length === 0 &&
-    Object.entries(findQuery.date).length === 0 &&
-    findQuery.date.constructor === Object
-  ) {
-    delete findQuery["date"];
-  }
-  if (isUserQuery) {
-    findQuery.userId = isUserQuery._id;
-    console.log("find Query content = ", findQuery, "limit : ", limit);
-    Exercises.find(findQuery)
-      .sort({ date: -1 })
-      .limit(limit)
-      .exec((err, data) => {
-        if (err) {
-          console.log(err.message);
-          return res.end("Error");
-        }
-        var temp = [];
-        data.forEach((value, index, array) => {
-          // console.log(value);
-          temp.push({
-            description: value.description,
-            duration: value.duration,
-            date: value.date.toDateString(),
-          });
-        });
-        if (data) {
-          // console.log("Exercises : ", data);
-          res.status(200).json({
-            _id: isUserQuery._id,
-            username: isUserQuery.username,
-            count: data.length,
-            log: temp,
-          });
-        }
-      });
-  }
+
+    if (from && new Date(from) != "Invalid Date") {
+      userlog = userlog.filter(
+        (log) => new Date(log.date).getTime() >= new Date(from).getTime()
+      );
+    }
+    if (from && new Date(to) != "Invalid Date") {
+      userlog = userlog.filter(
+        (log) => new Date(log.date).getTime() <= new Date(to).getTime()
+      );
+    }
+    if (limit) {
+      userlog = userlog.slice(0, limit);
+    }
+    res.json({
+      _id: user._id,
+      username: user.username,
+      count: userlog.length,
+      log: userlog,
+    });
+  });
 });
 
 const listener = app.listen(process.env.PORT || 3000, () => {
